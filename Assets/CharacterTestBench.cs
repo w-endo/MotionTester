@@ -1,7 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
 
-// 必要なコンポーネントを自動で追加します
 [RequireComponent(typeof(CharacterController))]
 public class CharacterTestBench : MonoBehaviour
 {
@@ -17,150 +16,118 @@ public class CharacterTestBench : MonoBehaviour
     public KeyCode runKey = KeyCode.LeftShift;
     public KeyCode idleSwitchKey = KeyCode.Space;
 
+    [Header("--- 単発アクションのキー設定 ---")]
+    [Tooltip("Action1～Action10を発動させるキーを指定してください")]
+    public List<KeyCode> actionKeys = new List<KeyCode>() {
+        KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4, KeyCode.Alpha5,
+        KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8, KeyCode.Alpha9, KeyCode.Alpha0
+    };
+
     [Header("--- 特殊待機のリスト ---")]
     [Tooltip("スペースキーで切り替える待機モーションの名前（Bool型）")]
     public List<string> specialIdleParameters = new List<string>();
 
-    [Header("--- 単発アクションの設定 (1~0キー) ---")]
-    [Tooltip("1〜0のキーに対応させるAnimatorのTrigger名（最大10個）")]
-    public string[] actionTriggers = new string[10];
-
-    // 内部で使う変数
+    // 内部変数
     private CharacterController characterController;
     private Animator anim;
-    private int currentIdleIndex = -1; // -1は通常待機
+    private int currentIdleIndex = -1;
 
     void Start()
     {
-        // 自分のについているCharacterControllerを取得
         characterController = GetComponent<CharacterController>();
-
-        // 【重要】モデルは子オブジェクトにあるので、子供からAnimatorを探す
         anim = GetComponentInChildren<Animator>();
 
-        if (anim == null)
-        {
-            Debug.LogError("エラー：子オブジェクトにAnimatorが見つかりません！モデルを配置してください。");
-        }
+        if (anim == null) Debug.LogError("エラー：子オブジェクトにAnimatorが見つかりません！");
     }
 
     void Update()
     {
-        // Animatorが見つからなかったら動かないようにする安全装置
         if (anim == null) return;
 
-        HandleMovement();      // 移動の処理
-        HandleActions();       // 単発アクションの処理
-        HandleIdleSwitch();    // 待機モーション切り替えの処理
+        // 1. 今、アクション中かどうかをチェックする
+        // Animatorのステートに「Action」というタグがついているか確認
+        bool isActionState = anim.GetCurrentAnimatorStateInfo(0).IsTag("Action");
+
+        // 2. アクション中なら移動処理をスキップ（リターン）して、その場で止まる
+        // ※ただし、重力処理だけは継続しないと空中で止まってしまうので注意
+        if (isActionState)
+        {
+            // 重力のみ適用して、関数の残りの処理はやらない
+            characterController.SimpleMove(Vector3.zero);
+            return;
+        }
+
+        // 3. 移動と入力の処理（アクション中でなければここが動く）
+        HandleMovement();
+        HandleActions();
+        HandleIdleSwitch();
     }
 
-    // 移動の処理（CharacterController使用版）
     void HandleMovement()
     {
-        // キーボード入力の取得
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
 
-        // 入力から移動する方向を作る
         Vector3 direction = new Vector3(horizontal, 0, vertical);
-
-        // 入力の強さを制限（斜め移動対策）
         if (direction.magnitude > 1.0f) direction.Normalize();
 
-        // 走っているかどうか
         bool isRunning = Input.GetKey(runKey);
         float currentSpeed = isRunning ? runSpeed : walkSpeed;
 
-        // 入力がある場合のみ、向きを変えて移動する
         if (direction.magnitude >= 0.1f)
         {
-            // 1. カメラの向きではなく「画面上の見た目の方向」に動かすための計算
-            // （カメラが回転しない前提の簡易版です。TPS視点にする場合はカメラのTransformが必要です）
-
-            // 2. キャラクターの向きを徐々に変える
+            // 向きを変える
             Quaternion targetRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.RotateTowards(
-                transform.rotation,
-                targetRotation,
-                turnSpeed * Time.deltaTime
-            );
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, turnSpeed * Time.deltaTime);
 
-            // 3. CharacterControllerで移動させる
-            // SimpleMoveは「重力」を自動で計算してくれる便利な命令です
-            // ※SimpleMoveには Time.deltaTime を掛けなくてOKです（内部でやってくれます）
-            Vector3 velocity = direction * currentSpeed;
-            characterController.SimpleMove(velocity);
+            // 移動する
+            characterController.SimpleMove(direction * currentSpeed);
         }
         else
         {
-            // 動いていない時も重力をかけるために(0,0,0)で実行し続ける
+            // 止まっていても重力はかける
             characterController.SimpleMove(Vector3.zero);
         }
 
-        // --- アニメーションの更新 ---
-
-        // 移動しているスピードを計算（実際の移動速度ではなく入力値ベースで判定）
+        // アニメーション速度更新
         float animSpeedValue = 0;
         if (direction.magnitude >= 0.1f)
         {
             animSpeedValue = isRunning ? 2.0f : 1.0f;
         }
-
-        // Animatorの「Speed」パラメータを滑らかに変更
         anim.SetFloat("Speed", animSpeedValue, 0.1f, Time.deltaTime);
     }
 
-    // 単発アクション（1〜0キー）の処理
     void HandleActions()
     {
-        // 1〜0のキーコード配列
-        KeyCode[] keyCodes = {
-            KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4, KeyCode.Alpha5,
-            KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8, KeyCode.Alpha9, KeyCode.Alpha0
-        };
-
-        for (int i = 0; i < keyCodes.Length; i++)
+        // 設定されたキーの数だけチェックする
+        for (int i = 0; i < actionKeys.Count; i++)
         {
-            if (Input.GetKeyDown(keyCodes[i]))
+            // もしリストのキーが押されたら
+            if (Input.GetKeyDown(actionKeys[i]))
             {
-                // 設定された名前が有効ならTriggerを起動
-                if (i < actionTriggers.Length && !string.IsNullOrEmpty(actionTriggers[i]))
-                {
-                    anim.SetTrigger(actionTriggers[i]);
-                    Debug.Log($"アクション実行 [Key {i + 1}]: {actionTriggers[i]}");
-                }
+                // 固定の名前 "Action1", "Action2"... を作成
+                string triggerName = "Action" + (i + 1);
+
+                // トリガーを発動
+                anim.SetTrigger(triggerName);
+                Debug.Log("アクション実行: " + triggerName);
             }
         }
     }
 
-    // 待機モーション切り替えの処理
     void HandleIdleSwitch()
     {
         if (specialIdleParameters.Count == 0) return;
 
         if (Input.GetKeyDown(idleSwitchKey))
         {
-            // 現在の特殊待機をOFFにする
             if (currentIdleIndex != -1)
-            {
                 anim.SetBool(specialIdleParameters[currentIdleIndex], false);
-            }
 
-            // 次のインデックスへ
             currentIdleIndex++;
-
-            // リストの最後まで行ったらリセット(-1)
-            if (currentIdleIndex >= specialIdleParameters.Count)
-            {
-                currentIdleIndex = -1;
-                Debug.Log("待機モード: 通常");
-            }
-            else
-            {
-                // 新しい特殊待機をONにする
-                anim.SetBool(specialIdleParameters[currentIdleIndex], true);
-                Debug.Log($"待機モード: {specialIdleParameters[currentIdleIndex]}");
-            }
+            if (currentIdleIndex >= specialIdleParameters.Count) currentIdleIndex = -1;
+            else anim.SetBool(specialIdleParameters[currentIdleIndex], true);
         }
     }
 }
