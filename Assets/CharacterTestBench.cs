@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
 [RequireComponent(typeof(CharacterController))]
 public class CharacterTestBench : MonoBehaviour
@@ -12,25 +13,28 @@ public class CharacterTestBench : MonoBehaviour
     [Tooltip("振り向く速さ")]
     public float turnSpeed = 360.0f;
 
+    [Header("--- モーション設定 ---")]
+    public AnimationClip idle;
+    public AnimationClip walk;
+    public AnimationClip run;
+    public AnimationClip[] action = new AnimationClip[10];
+    public AnimationClip[] otherIdle;
+
     [Header("--- キー設定 ---")]
     public KeyCode runKey = KeyCode.LeftShift;
     public KeyCode idleSwitchKey = KeyCode.Space;
 
-    [Header("--- 単発アクションのキー設定 ---")]
-    [Tooltip("Action1～Action10を発動させるキーを指定してください")]
     public List<KeyCode> actionKeys = new List<KeyCode>() {
         KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4, KeyCode.Alpha5,
         KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8, KeyCode.Alpha9, KeyCode.Alpha0
     };
 
-    [Header("--- 特殊待機のリスト ---")]
-    [Tooltip("スペースキーで切り替える待機モーションの名前（Bool型）")]
-    public List<string> specialIdleParameters = new List<string>();
-
     // 内部変数
     private CharacterController characterController;
     private Animator anim;
-    private int currentIdleIndex = -1;
+    private int IdleIndex = 0;
+    private AnimationClip[] idles;
+    private bool[] isAction = new bool[10];
 
     void Start()
     {
@@ -38,6 +42,9 @@ public class CharacterTestBench : MonoBehaviour
         anim = GetComponentInChildren<Animator>();
 
         if (anim == null) Debug.LogError("エラー：子オブジェクトにAnimatorが見つかりません！");
+
+        idles = new[] { idle }.Concat(otherIdle).ToArray();
+        SetAnimationClip();
     }
 
     void Update()
@@ -61,6 +68,37 @@ public class CharacterTestBench : MonoBehaviour
         HandleMovement();
         HandleActions();
         HandleIdleSwitch();
+    }
+
+    void SetAnimationClip()
+    {
+        // 現在のAnimatorControllerを元にOverrideControllerを作成
+        AnimatorOverrideController overrideController = new AnimatorOverrideController(anim.runtimeAnimatorController);
+
+        // Animatorにセット
+        anim.runtimeAnimatorController = overrideController;
+
+        // 特定の名前のクリップを上書き
+        overrideController["DummyIdle"] = idles[IdleIndex];
+        overrideController["DummyWalk"] = walk;
+        overrideController["DummyRun"] = run;
+
+        for(int i = 0; i < action.Length; i++)
+        {
+            if (action[i] != null)
+            {
+                if (action[i] != null)
+                {
+                    isAction[i] = true;
+                    string clipName = "Action" + (i + 1);
+                    overrideController[clipName] = action[i];
+                }
+                else
+                {
+                    isAction[i] = false;
+                }
+            }
+        }
     }
 
     void HandleMovement()
@@ -106,6 +144,12 @@ public class CharacterTestBench : MonoBehaviour
             // もしリストのキーが押されたら
             if (Input.GetKeyDown(actionKeys[i]))
             {
+                if (isAction[i] == false)
+                {
+                    Debug.Log("アクションが設定されていません: Action" + (i + 1));
+                    continue;
+                }
+
                 // 固定の名前 "Action1", "Action2"... を作成
                 string triggerName = "Action" + (i + 1);
 
@@ -118,16 +162,13 @@ public class CharacterTestBench : MonoBehaviour
 
     void HandleIdleSwitch()
     {
-        if (specialIdleParameters.Count == 0) return;
-
+        
         if (Input.GetKeyDown(idleSwitchKey))
         {
-            if (currentIdleIndex != -1)
-                anim.SetBool(specialIdleParameters[currentIdleIndex], false);
+            IdleIndex++;
+            if (IdleIndex >= idles.Length) IdleIndex = 0;
 
-            currentIdleIndex++;
-            if (currentIdleIndex >= specialIdleParameters.Count) currentIdleIndex = -1;
-            else anim.SetBool(specialIdleParameters[currentIdleIndex], true);
+            SetAnimationClip();
         }
     }
 }

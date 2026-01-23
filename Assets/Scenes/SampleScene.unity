@@ -647,10 +647,26 @@ MonoBehaviour:
   walkSpeed: 2
   runSpeed: 5
   turnSpeed: 360
+  idle: {fileID: -203655887218126122, guid: 1ee142c112cedce44aaa1ac9d0f3995b, type: 3}
+  walk: {fileID: -203655887218126122, guid: 19cc45a9018728f499680a6b3c3cd1ca, type: 3}
+  run: {fileID: -203655887218126122, guid: 22a92ac035a7c3c438d036081ff7003a, type: 3}
+  action:
+  - {fileID: -203655887218126122, guid: 1225098b241716e45a44e7c739742972, type: 3}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  otherIdle:
+  - {fileID: -203655887218126122, guid: 711ff178b92c6594db37582bb5540faf, type: 3}
+  - {fileID: -203655887218126122, guid: 7611c44cd0de62146a4afd121ddc2221, type: 3}
   runKey: 304
   idleSwitchKey: 32
   actionKeys: 31000000320000003300000034000000350000003600000037000000380000003900000030000000
-  specialIdleParameters: []
 --- !u!95 &2033176420
 Animator:
   serializedVersion: 7
