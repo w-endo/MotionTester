@@ -413,7 +413,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!114 &741904756
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -633,7 +633,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 1
     m_VerticalOverflow: 1
     m_LineSpacing: 1
-  m_Text: "\u79FB\u52D5\uFF1A\u30AB\u30FC\u30EB\u30AD\u30FC\u30FBWASD\n\u30C0\u30C3\u30B7\u30E5\uFF1A\u5DE6Shift\n\u30B8\u30E3\u30F3\u30D7\uFF1A1\u30AD\u30FC\n\u30AD\u30C3\u30AF\uFF1A2\u30AD\u30FC\n\u30E2\u30FC\u30B7\u30E7\u30F3\u5207\u63DB\u3048\uFF1A\u30B9\u30DA\u30FC\u30B9"
+  m_Text: "\u79FB\u52D5\uFF1A\u30AB\u30FC\u30EB\u30AD\u30FC\u30FBWASD\n\u30B8\u30E3\u30F3\u30D7\uFF1A\u5DE6Ctrl\n\u30D1\u30F3\u30C1\uFF1A1\u30AD\u30FC\n\u30AD\u30C3\u30AF\uFF1A2\u30AD\u30FC\n\u30E2\u30FC\u30B7\u30E7\u30F3\u5207\u63DB\u3048\uFF1A\u30B9\u30DA\u30FC\u30B9"
 --- !u!222 &876316777
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -1085,43 +1085,55 @@ MonoBehaviour:
     effectPrefab: {fileID: 5894625233843461384, guid: 389b6a537c5eea942b085d5d094d5b13, type: 3}
     effectDelay: 1.1
     effectBone: {fileID: 1521773610}
+    followBone: 0
+  - clip: {fileID: -203655887218126122, guid: a9ef160e515204e409b491cdd32f3681, type: 3}
+    effectPrefab: {fileID: 325556434328483193, guid: 1432e098957efef41bdd319d3bbc9a6d, type: 3}
+    effectDelay: 0.5
+    effectBone: {fileID: 2088025889}
+    followBone: 1
   - clip: {fileID: 0}
     effectPrefab: {fileID: 0}
     effectDelay: 0
     effectBone: {fileID: 0}
+    followBone: 0
   - clip: {fileID: 0}
     effectPrefab: {fileID: 0}
     effectDelay: 0
     effectBone: {fileID: 0}
+    followBone: 0
   - clip: {fileID: 0}
     effectPrefab: {fileID: 0}
     effectDelay: 0
     effectBone: {fileID: 0}
+    followBone: 0
   - clip: {fileID: 0}
     effectPrefab: {fileID: 0}
     effectDelay: 0
     effectBone: {fileID: 0}
+    followBone: 0
   - clip: {fileID: 0}
     effectPrefab: {fileID: 0}
     effectDelay: 0
     effectBone: {fileID: 0}
+    followBone: 0
   - clip: {fileID: 0}
     effectPrefab: {fileID: 0}
     effectDelay: 0
     effectBone: {fileID: 0}
+    followBone: 0
   - clip: {fileID: 0}
     effectPrefab: {fileID: 0}
     effectDelay: 0
     effectBone: {fileID: 0}
+    followBone: 0
   - clip: {fileID: 0}
     effectPrefab: {fileID: 0}
     effectDelay: 0
     effectBone: {fileID: 0}
-  - clip: {fileID: 0}
-    effectPrefab: {fileID: 0}
-    effectDelay: 0
-    effectBone: {fileID: 0}
-  otherIdle: []
+    followBone: 0
+  otherIdle:
+  - {fileID: -203655887218126122, guid: aaf40ec2a10ec5f45bbb2dc6ef2804a2, type: 3}
+  - {fileID: -203655887218126122, guid: 0405582636e0b8d469f9176f6cff5dbe, type: 3}
   runKey: 304
   idleSwitchKey: 32
   jumpKey: 306
@@ -1173,6 +1185,11 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 1, z: 0}
+--- !u!4 &2088025889 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 8044669281949152778, guid: b0b989d681e482d4193ded64aeb07bba, type: 3}
+  m_PrefabInstance: {fileID: 1856889609}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

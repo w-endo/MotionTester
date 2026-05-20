@@ -20,6 +20,9 @@ public class ActionEntry
 
     [Tooltip("エフェクトを出す骨（Transform）。空欄の場合はキャラクター自身の位置")]
     public Transform effectBone;
+
+    [Tooltip("ONにすると、エフェクトが骨に追従し続ける（剣の軌跡など）\nOFFにすると、指定時間後の骨の位置に一度だけ生成する")]
+    public bool followBone = false;
 }
 
 // ─────────────────────────────────────────────
@@ -41,6 +44,7 @@ public class CharacterTestBench : MonoBehaviour
 
     [Tooltip("ジャンプ力")]
     public float jumpForce = 5.0f;
+
 
     [Tooltip("重力加速度（通常は 9.81）")]
     public float gravity = 9.81f;
@@ -68,6 +72,8 @@ public class CharacterTestBench : MonoBehaviour
     private Animator anim;
     private int IdleIndex = 0;
     private AnimationClip[] idles;
+
+    // 垂直方向の速度（ジャンプ・落下で使う）
     private float verticalVelocity = 0f;
 
     void Start()
@@ -89,14 +95,13 @@ public class CharacterTestBench : MonoBehaviour
 
         if (isActionState)
         {
+            // アクション中：水平移動は止めるが重力・垂直速度は継続
             ApplyGravityOnly();
             return;
         }
 
-        // ★ジャンプ入力を先に処理して verticalVelocity をセットしてから
-        //   HandleMovement で Move() を呼ぶ
-        HandleJump();
         HandleMovement();
+        HandleJump();
         HandleActions();
         HandleIdleSwitch();
     }
@@ -122,13 +127,13 @@ public class CharacterTestBench : MonoBehaviour
     }
 
     // ─────────────────────────────────────────────
-    // 重力のみ適用（アクション中に使う）
+    // 重力のみ適用（アクション中など、水平移動を止めたい場面で使う）
     // ─────────────────────────────────────────────
     void ApplyGravityOnly()
     {
         if (characterController.isGrounded && verticalVelocity < 0f)
         {
-            verticalVelocity = -1f;
+            verticalVelocity = -1f; // 接地状態を安定させる最低限の下向き速度
         }
         else
         {
@@ -139,21 +144,7 @@ public class CharacterTestBench : MonoBehaviour
     }
 
     // ─────────────────────────────────────────────
-    // ジャンプ処理
-    // HandleMovement より前に呼ぶことで、
-    // 同フレーム内の Move() にジャンプ速度を反映させる
-    // ─────────────────────────────────────────────
-    void HandleJump()
-    {
-        if (characterController.isGrounded && Input.GetKeyDown(jumpKey))
-        {
-            verticalVelocity = jumpForce;
-            anim.SetTrigger("Jump");
-        }
-    }
-
-    // ─────────────────────────────────────────────
-    // 移動処理
+    // 移動処理（水平方向）
     // ─────────────────────────────────────────────
     void HandleMovement()
     {
@@ -166,9 +157,7 @@ public class CharacterTestBench : MonoBehaviour
         bool isRunning = Input.GetKey(runKey);
         float currentSpeed = isRunning ? runSpeed : walkSpeed;
 
-        // 重力の更新
-        // ※ジャンプした直後は verticalVelocity > 0 なので isGrounded 判定に入らず
-        //   正しく上昇できる
+        // 重力・垂直速度の更新
         if (characterController.isGrounded && verticalVelocity < 0f)
         {
             verticalVelocity = -1f;
@@ -184,13 +173,34 @@ public class CharacterTestBench : MonoBehaviour
             transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, turnSpeed * Time.deltaTime);
         }
 
+        // 水平移動 ＋ 垂直速度を合わせてMoveで適用
         Vector3 horizontalVelocity = direction * (direction.magnitude >= 0.1f ? currentSpeed : 0f);
-        characterController.Move((horizontalVelocity + Vector3.up * verticalVelocity) * Time.deltaTime);
+        Vector3 moveVelocity = horizontalVelocity + Vector3.up * verticalVelocity;
+        characterController.Move(moveVelocity * Time.deltaTime);
 
-        // アニメーションパラメータ更新
-        float animSpeedValue = (direction.magnitude >= 0.1f) ? (isRunning ? 2.0f : 1.0f) : 0f;
+        // アニメーション Speed パラメータ
+        float animSpeedValue = 0f;
+        if (direction.magnitude >= 0.1f)
+        {
+            animSpeedValue = isRunning ? 2.0f : 1.0f;
+        }
         anim.SetFloat("Speed", animSpeedValue, 0.1f, Time.deltaTime);
+
+        // 接地状態をアニメーターに伝える
         anim.SetBool("IsGrounded", characterController.isGrounded);
+    }
+
+    // ─────────────────────────────────────────────
+    // ジャンプ処理
+    // ─────────────────────────────────────────────
+    void HandleJump()
+    {
+        // 接地中にジャンプキーを押したときだけ発動
+        if (characterController.isGrounded && Input.GetKeyDown(jumpKey))
+        {
+            verticalVelocity = jumpForce;
+            anim.SetTrigger("Jump");
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -230,11 +240,15 @@ public class CharacterTestBench : MonoBehaviour
 
         Vector3 spawnPosition;
         Quaternion spawnRotation;
+        Transform parent = null;
 
         if (entry.effectBone != null)
         {
             spawnPosition = entry.effectBone.position;
             spawnRotation = entry.effectBone.rotation;
+
+            // 追従モードのときは骨を親にセット
+            if (entry.followBone) parent = entry.effectBone;
         }
         else
         {
@@ -242,7 +256,13 @@ public class CharacterTestBench : MonoBehaviour
             spawnRotation = transform.rotation;
         }
 
-        Instantiate(entry.effectPrefab, spawnPosition, spawnRotation);
+        GameObject effect = Instantiate(entry.effectPrefab, spawnPosition, spawnRotation);
+
+        // 追従モード：骨の子にする（位置・回転が自動的に追従する）
+        if (parent != null)
+        {
+            effect.transform.SetParent(parent, worldPositionStays: true);
+        }
     }
 
     // ─────────────────────────────────────────────
