@@ -1,28 +1,62 @@
 ﻿using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 
+// ─────────────────────────────────────────────
+// アクション1枠分の設定（クリップ＋エフェクト）
+// ─────────────────────────────────────────────
+[System.Serializable]
+public class ActionEntry
+{
+    [Tooltip("再生するアニメーションクリップ")]
+    public AnimationClip clip;
+
+    [Tooltip("生成するエフェクトのプレファブ（空欄可）")]
+    public GameObject effectPrefab;
+
+    [Tooltip("アクション開始から何秒後にエフェクトを出すか")]
+    public float effectDelay = 0.0f;
+
+    [Tooltip("エフェクトを出す骨（Transform）。空欄の場合はキャラクター自身の位置")]
+    public Transform effectBone;
+}
+
+// ─────────────────────────────────────────────
+// メインクラス
+// ─────────────────────────────────────────────
 [RequireComponent(typeof(CharacterController))]
 public class CharacterTestBench : MonoBehaviour
 {
     [Header("--- 移動設定 ---")]
+
     [Tooltip("歩く速度")]
     public float walkSpeed = 3.0f;
+
     [Tooltip("走る速度（Shiftキー）")]
     public float runSpeed = 6.0f;
+
     [Tooltip("振り向く速さ")]
     public float turnSpeed = 360.0f;
+
+    [Tooltip("ジャンプ力")]
+    public float jumpForce = 5.0f;
+
+    [Tooltip("重力加速度（通常は 9.81）")]
+    public float gravity = 9.81f;
 
     [Header("--- モーション設定 ---")]
     public AnimationClip idle;
     public AnimationClip walk;
     public AnimationClip run;
-    public AnimationClip[] action = new AnimationClip[10];
+    public AnimationClip jumpClip;
+    public ActionEntry[] actions = new ActionEntry[10];
     public AnimationClip[] otherIdle;
 
     [Header("--- キー設定 ---")]
     public KeyCode runKey = KeyCode.LeftShift;
-    public KeyCode idleSwitchKey = KeyCode.Space;
+    public KeyCode idleSwitchKey = KeyCode.Tab;
+    public KeyCode jumpKey = KeyCode.LeftControl;
 
     public List<KeyCode> actionKeys = new List<KeyCode>() {
         KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4, KeyCode.Alpha5,
@@ -34,7 +68,7 @@ public class CharacterTestBench : MonoBehaviour
     private Animator anim;
     private int IdleIndex = 0;
     private AnimationClip[] idles;
-    private bool[] isAction = new bool[10];
+    private float verticalVelocity = 0f;
 
     void Start()
     {
@@ -51,20 +85,17 @@ public class CharacterTestBench : MonoBehaviour
     {
         if (anim == null) return;
 
-        // 1. 今、アクション中かどうかをチェックする
-        // Animatorのステートに「Action」というタグがついているか確認
         bool isActionState = anim.GetCurrentAnimatorStateInfo(0).IsTag("Action");
 
-        // 2. アクション中なら移動処理をスキップ（リターン）して、その場で止まる
-        // ※ただし、重力処理だけは継続しないと空中で止まってしまうので注意
         if (isActionState)
         {
-            // 重力のみ適用して、関数の残りの処理はやらない
-            characterController.SimpleMove(Vector3.zero);
+            ApplyGravityOnly();
             return;
         }
 
-        // 3. 移動と入力の処理（アクション中でなければここが動く）
+        // ★ジャンプ入力を先に処理して verticalVelocity をセットしてから
+        //   HandleMovement で Move() を呼ぶ
+        HandleJump();
         HandleMovement();
         HandleActions();
         HandleIdleSwitch();
@@ -72,37 +103,58 @@ public class CharacterTestBench : MonoBehaviour
 
     void SetAnimationClip()
     {
-        // 現在のAnimatorControllerを元にOverrideControllerを作成
         AnimatorOverrideController overrideController = new AnimatorOverrideController(anim.runtimeAnimatorController);
 
-
-
-        // 特定の名前のクリップを上書き
         overrideController["DummyIdle"] = idles[IdleIndex];
         overrideController["DummyWalk"] = walk;
         overrideController["DummyRun"] = run;
+        overrideController["DummyJump"] = jumpClip;
 
-        for(int i = 0; i < action.Length; i++)
+        for (int i = 0; i < actions.Length; i++)
         {
-            if (action[i] != null)
+            if (actions[i] != null && actions[i].clip != null)
             {
-                if (action[i] != null)
-                {
-                    isAction[i] = true;
-                    string clipName = "DummyAction " + (i);
-                    overrideController[clipName] = action[i];
-                }
-                else
-                {
-                    isAction[i] = false;
-                }
+                overrideController["DummyAction " + i] = actions[i].clip;
             }
         }
 
-        // Animatorにセット
         anim.runtimeAnimatorController = overrideController;
     }
 
+    // ─────────────────────────────────────────────
+    // 重力のみ適用（アクション中に使う）
+    // ─────────────────────────────────────────────
+    void ApplyGravityOnly()
+    {
+        if (characterController.isGrounded && verticalVelocity < 0f)
+        {
+            verticalVelocity = -1f;
+        }
+        else
+        {
+            verticalVelocity -= gravity * Time.deltaTime;
+        }
+
+        characterController.Move(new Vector3(0f, verticalVelocity, 0f) * Time.deltaTime);
+    }
+
+    // ─────────────────────────────────────────────
+    // ジャンプ処理
+    // HandleMovement より前に呼ぶことで、
+    // 同フレーム内の Move() にジャンプ速度を反映させる
+    // ─────────────────────────────────────────────
+    void HandleJump()
+    {
+        if (characterController.isGrounded && Input.GetKeyDown(jumpKey))
+        {
+            verticalVelocity = jumpForce;
+            anim.SetTrigger("Jump");
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // 移動処理
+    // ─────────────────────────────────────────────
     void HandleMovement()
     {
         float horizontal = Input.GetAxis("Horizontal");
@@ -114,62 +166,94 @@ public class CharacterTestBench : MonoBehaviour
         bool isRunning = Input.GetKey(runKey);
         float currentSpeed = isRunning ? runSpeed : walkSpeed;
 
-        if (direction.magnitude >= 0.1f)
+        // 重力の更新
+        // ※ジャンプした直後は verticalVelocity > 0 なので isGrounded 判定に入らず
+        //   正しく上昇できる
+        if (characterController.isGrounded && verticalVelocity < 0f)
         {
-            // 向きを変える
-            Quaternion targetRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, turnSpeed * Time.deltaTime);
-
-            // 移動する
-            characterController.SimpleMove(direction * currentSpeed);
+            verticalVelocity = -1f;
         }
         else
         {
-            // 止まっていても重力はかける
-            characterController.SimpleMove(Vector3.zero);
+            verticalVelocity -= gravity * Time.deltaTime;
         }
 
-        // アニメーション速度更新
-        float animSpeedValue = 0;
         if (direction.magnitude >= 0.1f)
         {
-            animSpeedValue = isRunning ? 2.0f : 1.0f;
+            Quaternion targetRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, turnSpeed * Time.deltaTime);
         }
+
+        Vector3 horizontalVelocity = direction * (direction.magnitude >= 0.1f ? currentSpeed : 0f);
+        characterController.Move((horizontalVelocity + Vector3.up * verticalVelocity) * Time.deltaTime);
+
+        // アニメーションパラメータ更新
+        float animSpeedValue = (direction.magnitude >= 0.1f) ? (isRunning ? 2.0f : 1.0f) : 0f;
         anim.SetFloat("Speed", animSpeedValue, 0.1f, Time.deltaTime);
+        anim.SetBool("IsGrounded", characterController.isGrounded);
     }
 
+    // ─────────────────────────────────────────────
+    // アクション処理
+    // ─────────────────────────────────────────────
     void HandleActions()
     {
-        // 設定されたキーの数だけチェックする
         for (int i = 0; i < actionKeys.Count; i++)
         {
-            // もしリストのキーが押されたら
-            if (Input.GetKeyDown(actionKeys[i]))
+            if (!Input.GetKeyDown(actionKeys[i])) continue;
+
+            ActionEntry entry = (i < actions.Length) ? actions[i] : null;
+
+            if (entry == null || entry.clip == null)
             {
-                if (isAction[i] == false)
-                {
-                    Debug.Log("アクションが設定されていません: Action" + (i + 1));
-                    continue;
-                }
+                Debug.Log("アクションが設定されていません: Action" + (i + 1));
+                continue;
+            }
 
-                // 固定の名前 "Action1", "Action2"... を作成
-                string triggerName = "Action" + (i);
+            string triggerName = "Action" + i;
+            anim.SetTrigger(triggerName);
+            Debug.Log("アクション実行: " + triggerName);
 
-                // トリガーを発動
-                anim.SetTrigger(triggerName);
-                Debug.Log("アクション実行: " + triggerName);
+            if (entry.effectPrefab != null)
+            {
+                StartCoroutine(SpawnEffectAfterDelay(entry));
             }
         }
     }
 
+    IEnumerator SpawnEffectAfterDelay(ActionEntry entry)
+    {
+        if (entry.effectDelay > 0f)
+        {
+            yield return new WaitForSeconds(entry.effectDelay);
+        }
+
+        Vector3 spawnPosition;
+        Quaternion spawnRotation;
+
+        if (entry.effectBone != null)
+        {
+            spawnPosition = entry.effectBone.position;
+            spawnRotation = entry.effectBone.rotation;
+        }
+        else
+        {
+            spawnPosition = transform.position;
+            spawnRotation = transform.rotation;
+        }
+
+        Instantiate(entry.effectPrefab, spawnPosition, spawnRotation);
+    }
+
+    // ─────────────────────────────────────────────
+    // 待機モーション切り替え
+    // ─────────────────────────────────────────────
     void HandleIdleSwitch()
     {
-        
         if (Input.GetKeyDown(idleSwitchKey))
         {
             IdleIndex++;
             if (IdleIndex >= idles.Length) IdleIndex = 0;
-
             SetAnimationClip();
         }
     }
